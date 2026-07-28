@@ -1,0 +1,196 @@
+{
+  "targetName": "Classic Mini regression fixture",
+  "sourceImage": "mini-reference.png",
+  "selfCorrectLoop": {
+    "visualAcceptance": {
+      "visiblePartContractPolicy": {
+        "enabled": true,
+        "componentImportanceThreshold": 0.65,
+        "requireLocalEvidence": true,
+        "requireSameCamera": true,
+        "requireArtifactFingerprints": true,
+        "requireDefectClosure": true,
+        "requireMetricImprovement": true,
+        "maxOrientationDeltaDegrees": 12.0,
+        "localCheckDefaultThresholds": {
+          "high": 0.8,
+          "medium": 0.7,
+          "low": 0.5
+        }
+      }
+    }
+  },
+  "buildPasses": [
+    {
+      "id": "form-refinement"
+    }
+  ],
+  "componentTree": [
+    {
+      "id": "windscreen-wipers",
+      "importance": 0.9,
+      "referenceVisibility": "full"
+    },
+    {
+      "id": "front-grille",
+      "importance": 0.95,
+      "referenceVisibility": "full"
+    },
+    {
+      "id": "left-door-mirror",
+      "importance": 0.8,
+      "referenceVisibility": "full"
+    }
+  ],
+  "visiblePartContracts": [
+    {
+      "id": "windscreen-wipers",
+      "label": "Two windscreen wiper arms",
+      "componentRefs": [
+        "windscreen-wipers"
+      ],
+      "detailRefs": [],
+      "passIds": [
+        "form-refinement"
+      ],
+      "visibility": "full",
+      "identityImportance": "high",
+      "mustReview": true,
+      "requiredChecks": [
+        "presence",
+        "position",
+        "pose",
+        "attachment"
+      ],
+      "artifactRefs": [
+        "parts/wipers.ts"
+      ],
+      "dependencyArtifactRefs": [
+        "parts/windshield.ts"
+      ],
+      "expectedAttachment": {
+        "parentRef": "windscreen",
+        "socketRef": "lower-glass-edge",
+        "rootContactRequired": true,
+        "maxOrientationDeltaDegrees": 7.0
+      },
+      "allowApproximation": false
+    },
+    {
+      "id": "front-grille",
+      "label": "Rounded trapezoidal grille opening and slat envelope",
+      "componentRefs": [
+        "front-grille"
+      ],
+      "detailRefs": [],
+      "passIds": [
+        "form-refinement"
+      ],
+      "visibility": "full",
+      "identityImportance": "high",
+      "mustReview": true,
+      "requiredChecks": [
+        "presence",
+        "contour",
+        "proportion",
+        "position"
+      ],
+      "artifactRefs": [
+        "parts/grille.ts"
+      ],
+      "dependencyArtifactRefs": [
+        "parts/nose.ts"
+      ],
+      "allowApproximation": false
+    },
+    {
+      "id": "left-door-mirror",
+      "label": "Door-mounted left exterior mirror",
+      "componentRefs": [
+        "left-door-mirror"
+      ],
+      "detailRefs": [],
+      "passIds": [
+        "form-refinement"
+      ],
+      "visibility": "full",
+      "identityImportance": "medium",
+      "mustReview": true,
+      "requiredChecks": [
+        "presence",
+        "position",
+        "pose",
+        "attachment"
+      ],
+      "artifactRefs": [
+        "parts/mirror.ts"
+      ],
+      "dependencyArtifactRefs": [
+        "parts/door.ts"
+      ],
+      "expectedAttachment": {
+        "parentRef": "left-door",
+        "socketRef": "mirror-mount",
+        "rootContactRequired": true,
+        "maxOrientationDeltaDegrees": 9.0
+      },
+      "allowApproximation": false
+    }
+  ],
+  "visualDefects": [
+    {
+      "id": "mini-wiper-pose",
+      "partId": "windscreen-wipers",
+      "kind": "pose",
+      "status": "open",
+      "passIds": [
+        "form-refinement"
+      ],
+      "requiredChangeGroups": [
+        [
+          "orientation",
+          "endpoints"
+        ],
+        [
+          "attachment",
+          "socket"
+        ]
+      ]
+    },
+    {
+      "id": "mini-grille-contour",
+      "partId": "front-grille",
+      "kind": "contour",
+      "status": "open",
+      "passIds": [
+        "form-refinement"
+      ],
+      "requiredChangeProperties": [
+        "contour",
+        "profile",
+        "control-points"
+      ]
+    },
+    {
+      "id": "mini-mirror-architecture",
+      "partId": "left-door-mirror",
+      "kind": "attachment",
+      "status": "open",
+      "passIds": [
+        "form-refinement"
+      ],
+      "requiredChangeGroups": [
+        [
+          "attachment",
+          "parent",
+          "socket"
+        ],
+        [
+          "pose",
+          "orientation"
+        ]
+      ]
+    }
+  ],
+  "reviewHistory": []
+}

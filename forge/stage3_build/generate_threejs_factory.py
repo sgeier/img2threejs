@@ -10,7 +10,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from orchestrate_passes import pass_specific_gaps
+from orchestrate_passes import (
+    completed_passes as orchestrated_completed_passes,
+    pass_specific_gaps,
+)
 
 
 VALID_PRIMITIVES = {
@@ -80,32 +83,27 @@ def review_completes_pass(entry: dict[str, Any], pass_id: str) -> bool:
     return True
 
 
-def completed_passes(spec: dict[str, Any], ids: list[str]) -> list[str]:
-    history = spec.get("reviewHistory", [])
-    if not isinstance(history, list):
-        return []
-    completed: list[str] = []
-    for pass_id in ids:
-        if any(isinstance(entry, dict) and review_completes_pass(entry, pass_id) for entry in history):
-            completed.append(pass_id)
-        else:
-            break
-    return completed
+def completed_passes(
+    spec: dict[str, Any], ids: list[str], spec_dir: Path | None = None
+) -> list[str]:
+    return orchestrated_completed_passes(spec, ids, spec_dir)
 
 
-def unlocked_pass(spec: dict[str, Any]) -> str:
+def unlocked_pass(spec: dict[str, Any], spec_dir: Path | None = None) -> str:
     ids = pass_order(spec)
-    completed = completed_passes(spec, ids)
+    completed = completed_passes(spec, ids, spec_dir)
     if len(completed) >= len(ids):
         return ids[-1]
     return ids[len(completed)]
 
 
-def assert_pass_unlocked(spec: dict[str, Any], requested_pass: str) -> None:
+def assert_pass_unlocked(
+    spec: dict[str, Any], requested_pass: str, spec_dir: Path | None = None
+) -> None:
     ids = pass_order(spec)
     if requested_pass not in ids:
         raise ValueError(f"unknown build pass {requested_pass!r}; expected one of: {', '.join(ids)}")
-    completed = completed_passes(spec, ids)
+    completed = completed_passes(spec, ids, spec_dir)
     current = ids[-1] if len(completed) >= len(ids) else ids[len(completed)]
     if requested_pass in completed or requested_pass == current:
         return
@@ -1366,10 +1364,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
 
-    spec = load_spec(args.spec.expanduser().resolve())
-    pass_id = args.pass_id or unlocked_pass(spec)
+    spec_path = args.spec.expanduser().resolve()
+    spec = load_spec(spec_path)
+    pass_id = args.pass_id or unlocked_pass(spec, spec_path.parent)
     try:
-        assert_pass_unlocked(spec, pass_id)
+        assert_pass_unlocked(spec, pass_id, spec_path.parent)
     except ValueError as exc:
         parser.error(str(exc))
     gaps = pass_specific_gaps(spec, pass_id)

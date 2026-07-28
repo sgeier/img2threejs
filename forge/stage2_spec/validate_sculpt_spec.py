@@ -12,6 +12,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_shared"))
 from feature_acceptance_policy import feature_gate_failures, feature_review_policy
+from visible_part_contracts import visible_part_gate_failures, visible_part_spec_gaps
 
 
 REQUIRED_TOP_LEVEL = {
@@ -1418,6 +1419,11 @@ def validate_review_history(spec: dict[str, Any], errors: list[str], warnings: l
                 warnings.append(
                     f"quality: reviewHistory[{index}] feature gate failed: {failure}"
                 )
+            part_failures = visible_part_gate_failures(spec, entry, str(pass_id))
+            for failure in part_failures:
+                warnings.append(
+                    f"quality: reviewHistory[{index}] visible-part gate failed: {failure}"
+                )
 
 
 def validate_visual_evidence_history(spec: dict[str, Any], errors: list[str]) -> None:
@@ -1487,6 +1493,8 @@ def review_completes_pass(
         if not is_number(score) or not is_number(threshold) or float(score) < float(threshold):
             return False
         if feature_gate_failures(spec, entry, pass_id):
+            return False
+        if visible_part_gate_failures(spec, entry, pass_id):
             return False
     return True
 
@@ -1902,6 +1910,8 @@ def validate_spec(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     validate_action_readiness(spec, errors, warnings)
     validate_self_correct_loop(spec, errors, warnings)
     validate_feature_review_targets(spec, errors, warnings)
+    for gap in visible_part_spec_gaps(spec):
+        warnings.append(f"quality: visible-part contract: {gap}")
     validate_review_history(spec, errors, warnings)
     validate_visual_evidence_history(spec, errors)
     build_pass_ids = validate_build_passes(spec, errors, warnings)

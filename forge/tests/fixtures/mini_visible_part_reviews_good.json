@@ -1,0 +1,122 @@
+{
+  "parts": [
+    {
+      "id": "windscreen-wipers",
+      "status": "pass",
+      "evidence": {
+        "reference": "crops/reference-wipers.png",
+        "render": "crops/render-wipers-v2.png",
+        "comparison": "crops/compare-wipers-v2.png",
+        "cameraView": "front-left",
+        "sameCamera": true
+      },
+      "checks": {
+        "presence": {"verdict": "pass", "score": 0.96},
+        "position": {"verdict": "pass", "score": 0.9},
+        "pose": {"verdict": "pass", "score": 0.89},
+        "attachment": {"verdict": "pass", "score": 0.92}
+      },
+      "pose": {
+        "orientationDeltaDegrees": 4.0
+      },
+      "attachment": {
+        "parentRef": "windscreen",
+        "socketRef": "lower-glass-edge",
+        "rootContact": true
+      },
+      "defectResolutions": [
+        {
+          "id": "mini-wiper-pose",
+          "status": "resolved",
+          "changedProperties": ["orientation", "endpoints", "socket"],
+          "beforeEvidence": "before/wipers.png",
+          "afterEvidence": "after/wipers-v2.png",
+          "sameCamera": true,
+          "metric": {
+            "name": "local-pose-score",
+            "before": 0.52,
+            "after": 0.89,
+            "direction": "higher-is-better",
+            "minimumImprovement": 0.1
+          }
+        }
+      ]
+    },
+    {
+      "id": "front-grille",
+      "status": "pass",
+      "evidence": {
+        "reference": "crops/reference-grille.png",
+        "render": "crops/render-grille-v2.png",
+        "comparison": "crops/compare-grille-v2.png",
+        "cameraView": "front-left",
+        "sameCamera": true
+      },
+      "checks": {
+        "presence": {"verdict": "pass", "score": 0.97},
+        "contour": {"verdict": "pass", "score": 0.9},
+        "proportion": {"verdict": "pass", "score": 0.88},
+        "position": {"verdict": "pass", "score": 0.9}
+      },
+      "defectResolutions": [
+        {
+          "id": "mini-grille-contour",
+          "status": "resolved",
+          "changedProperties": ["profile", "control-points"],
+          "beforeEvidence": "before/grille.png",
+          "afterEvidence": "after/grille-v2.png",
+          "sameCamera": true,
+          "metric": {
+            "name": "local-contour-score",
+            "before": 0.61,
+            "after": 0.9,
+            "direction": "higher-is-better",
+            "minimumImprovement": 0.1
+          }
+        }
+      ]
+    },
+    {
+      "id": "left-door-mirror",
+      "status": "pass",
+      "evidence": {
+        "reference": "crops/reference-mirror.png",
+        "render": "crops/render-mirror-v2.png",
+        "comparison": "crops/compare-mirror-v2.png",
+        "cameraView": "front-left",
+        "sameCamera": true
+      },
+      "checks": {
+        "presence": {"verdict": "pass", "score": 0.95},
+        "position": {"verdict": "pass", "score": 0.86},
+        "pose": {"verdict": "pass", "score": 0.84},
+        "attachment": {"verdict": "pass", "score": 0.88}
+      },
+      "pose": {
+        "orientationDeltaDegrees": 6.0
+      },
+      "attachment": {
+        "parentRef": "left-door",
+        "socketRef": "mirror-mount",
+        "rootContact": true
+      },
+      "defectResolutions": [
+        {
+          "id": "mini-mirror-architecture",
+          "status": "resolved",
+          "changedProperties": ["parent", "socket", "orientation"],
+          "beforeEvidence": "before/mirror.png",
+          "afterEvidence": "after/mirror-v2.png",
+          "sameCamera": true,
+          "metric": {
+            "name": "local-architecture-score",
+            "before": 0.46,
+            "after": 0.86,
+            "direction": "higher-is-better",
+            "minimumImprovement": 0.1
+          }
+        }
+      ]
+    }
+  ]
+}

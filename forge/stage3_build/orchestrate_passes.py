@@ -12,6 +12,10 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_shared"))
 from feature_acceptance_policy import feature_gate_failures
+from visible_part_contracts import (
+    required_visible_part_contracts,
+    visible_part_gate_failures,
+)
 from status_banner import emit_status
 
 
@@ -84,7 +88,12 @@ def visual_evidence(entry: dict[str, Any]) -> dict[str, Any]:
     return visual if isinstance(visual, dict) else {}
 
 
-def review_completes_pass(spec: dict[str, Any], entry: dict[str, Any], pass_id: str) -> bool:
+def review_completes_pass(
+    spec: dict[str, Any],
+    entry: dict[str, Any],
+    pass_id: str,
+    spec_dir: Path | None = None,
+) -> bool:
     if entry.get("passId") != pass_id or entry.get("action") != "continue":
         return False
     if pass_id in VISUAL_PASS_IDS:
@@ -97,17 +106,22 @@ def review_completes_pass(spec: dict[str, Any], entry: dict[str, Any], pass_id: 
             return False
         if feature_gate_failures(spec, entry, pass_id):
             return False
+        if visible_part_gate_failures(spec, entry, pass_id, spec_dir):
+            return False
     return True
 
 
-def completed_passes(spec: dict[str, Any], ids: list[str]) -> list[str]:
+def completed_passes(
+    spec: dict[str, Any], ids: list[str], spec_dir: Path | None = None
+) -> list[str]:
     history = spec.get("reviewHistory", [])
     if not isinstance(history, list):
         return []
     completed: list[str] = []
     for pass_id in ids:
         if any(
-            isinstance(entry, dict) and review_completes_pass(spec, entry, pass_id)
+            isinstance(entry, dict)
+            and review_completes_pass(spec, entry, pass_id, spec_dir)
             for entry in history
         ):
             completed.append(pass_id)
@@ -132,6 +146,10 @@ def next_required_evidence(spec: dict[str, Any], pass_id: str) -> list[str]:
         evidence.append("side-by-side reference/render comparison sheet for AI vision review")
         evidence.append("AI vision score at or above the visual acceptance threshold")
         evidence.append("all critical semantic feature scores from the shared image pair at or above their thresholds")
+        if required_visible_part_contracts(spec, pass_id):
+            evidence.append(
+                "visible-part report: local same-camera crops, pose/attachment checks, defect closure, and current source fingerprints"
+            )
         evidence.append("self-correction review appended with action=continue before the next pass")
     return evidence
 
@@ -422,9 +440,11 @@ def pass_specific_gaps(spec: dict[str, Any], pass_id: str) -> list[str]:
     return []
 
 
-def sync_pipeline(spec: dict[str, Any]) -> dict[str, Any]:
+def sync_pipeline(
+    spec: dict[str, Any], spec_dir: Path | None = None
+) -> dict[str, Any]:
     ids = pass_order(spec)
-    completed = completed_passes(spec, ids)
+    completed = completed_passes(spec, ids, spec_dir)
     current = current_pass(ids, completed)
     pipeline = spec.setdefault("sculptPipeline", {})
     if not isinstance(pipeline, dict):
@@ -479,8 +499,10 @@ def has_passing_tier1_result(spec: dict[str, Any], pass_id: str) -> bool:
     )
 
 
-def check_pass(spec: dict[str, Any], requested_pass: str) -> tuple[bool, str, dict[str, Any]]:
-    pipeline = sync_pipeline(spec)
+def check_pass(
+    spec: dict[str, Any], requested_pass: str, spec_dir: Path | None = None
+) -> tuple[bool, str, dict[str, Any]]:
+    pipeline = sync_pipeline(spec, spec_dir)
     ids = list(pipeline["passOrder"])
     if requested_pass not in ids:
         return False, f"unknown build pass {requested_pass!r}", pipeline
@@ -511,8 +533,8 @@ def check_pass(spec: dict[str, Any], requested_pass: str) -> tuple[bool, str, di
     )
 
 
-def status_payload(spec: dict[str, Any]) -> dict[str, Any]:
-    pipeline = sync_pipeline(spec)
+def status_payload(spec: dict[str, Any], spec_dir: Path | None = None) -> dict[str, Any]:
+    pipeline = sync_pipeline(spec, spec_dir)
     return {
         "targetName": spec.get("targetName"),
         "passGateMode": pipeline.get("passGateMode"),
@@ -547,7 +569,7 @@ def main(argv: list[str]) -> int:
     emit_status(spec, next_command=f"forge/stage3_build/orchestrate_passes.py {args.command} {spec_path}", stream=sys.stderr if getattr(args, "json", False) else sys.stdout)
 
     if args.command == "status":
-        payload = status_payload(spec)
+        payload = status_payload(spec, spec_path.parent)
         if args.json:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
         else:
@@ -558,7 +580,7 @@ def main(argv: list[str]) -> int:
         return 0
 
     if args.command == "check":
-        ok, message, pipeline = check_pass(spec, args.pass_id)
+        ok, message, pipeline = check_pass(spec, args.pass_id, spec_path.parent)
         payload = {"ok": ok, "message": message, "pipeline": pipeline}
         if args.json:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -569,14 +591,14 @@ def main(argv: list[str]) -> int:
 
     if args.command == "sync":
         ids = pass_order(spec)
-        completed = completed_passes(spec, ids)
+        completed = completed_passes(spec, ids, spec_path.parent)
         disagreements = ledger_disagreements(spec, completed)
         if disagreements:
             print("ledger disagreement: review history contains uncredited passes", file=sys.stderr)
             for item in disagreements:
                 print(f"- {item}", file=sys.stderr)
             return 1
-        payload = status_payload(spec)
+        payload = status_payload(spec, spec_path.parent)
         output = spec_path if args.in_place else (args.out.expanduser().resolve() if args.out else None)
         if output:
             write_spec(output, spec)

@@ -993,6 +993,22 @@ def make_spec(target_name: str, image: str | None, assessment_payload: dict | No
                     "singleImagePairOnly": True,
                     "selectionRule": "Choose only the most visually salient, identity-defining, user-prioritized, or high-risk semantic systems. Group repeated parts instead of reviewing every mesh. AI vision scores every selected feature from the same full reference/render pair.",
                 },
+                "visiblePartContractPolicy": {
+                    "enabled": True,
+                    "componentImportanceThreshold": 0.65,
+                    "requireLocalEvidence": True,
+                    "requireSameCamera": True,
+                    "requireArtifactFingerprints": True,
+                    "requireDefectClosure": True,
+                    "requireMetricImprovement": True,
+                    "maxOrientationDeltaDegrees": 12.0,
+                    "localCheckDefaultThresholds": {
+                        "high": 0.8,
+                        "medium": 0.7,
+                        "low": 0.5,
+                    },
+                    "rule": "Every high/medium visible part needs a local same-camera review. Pose and attachment contracts are semantic, known defects need before/after improvement, and source/dependency hashes invalidate stale approvals.",
+                },
             },
             "reviewAfterPasses": [
                 "blockout",
@@ -1078,6 +1094,30 @@ def make_spec(target_name: str, image: str | None, assessment_payload: dict | No
                 "evidenceRefs": ["full-object"],
             },
         ],
+        "visiblePartContracts": [
+            {
+                "id": "overall-visible-form",
+                "label": "Overall visible form",
+                "componentRefs": ["root"],
+                "detailRefs": [],
+                "passIds": ["blockout", "structural-pass", "form-refinement"],
+                "visibility": "full",
+                "identityImportance": "high",
+                "mustReview": True,
+                "requiredChecks": ["presence", "silhouette", "proportion"],
+                "minimumScores": {
+                    "presence": 0.9,
+                    "silhouette": 0.8,
+                    "proportion": 0.8,
+                },
+                "referenceEvidence": ["full-object"],
+                "artifactRefs": [],
+                "dependencyArtifactRefs": [],
+                "allowApproximation": False,
+                "authoringNote": "Replace this starter with one contract per important visible part and point artifactRefs at the actual component source files before approval.",
+            }
+        ],
+        "visualDefects": [],
         "sculptPipeline": {
             "passGateMode": "locked-sequential",
             "passOrder": [
@@ -1099,6 +1139,7 @@ def make_spec(target_name: str, image: str | None, assessment_payload: dict | No
                 "side-by-side reference/render comparison sheet",
                 "AI vision score >= 0.7 with layer scores and mismatch critique",
                 "critical semantic feature scores from the same image pair meeting their individual thresholds",
+                "visible-part report with local same-camera evidence, current source fingerprints, and closed known defects",
                 "reviewHistory entry for blockout with action=continue",
             ],
         },

@@ -563,6 +563,10 @@ class PipelineTest(unittest.TestCase):
         })
         # every critical feature target of this pass needs an AI-vision review entry
         spec = json.loads(self.spec.read_text())
+        model_source = self.dir / "createObjectModel.ts"
+        model_source.write_text("export const revision = 1;\n", encoding="utf-8")
+        spec["visiblePartContracts"][0]["artifactRefs"] = [str(model_source)]
+        self.spec.write_text(json.dumps(spec), encoding="utf-8")
         targets = spec.get("selfCorrectLoop", {}).get("featureReviewTargets", [])
         reviews = [
             {"id": t.get("id"), "score": 0.8, "visible": True, "notes": "acceptable"}
@@ -570,12 +574,34 @@ class PipelineTest(unittest.TestCase):
         ] or [{"id": "overall-silhouette", "score": 0.8, "visible": True, "notes": "ok"}]
         freviews = self.dir / "features.json"
         freviews.write_text(json.dumps(reviews))
+        part_observations = self.dir / "part-observations.json"
+        part_observations.write_text(json.dumps({"parts": [{
+            "id": "overall-visible-form",
+            "status": "pass",
+            "evidence": {
+                "reference": str(self.ref), "render": str(self.render),
+                "comparison": str(cmp), "cameraView": "front", "sameCamera": True,
+            },
+            "checks": {
+                "presence": {"verdict": "pass", "score": 0.95},
+                "silhouette": {"verdict": "pass", "score": 0.85},
+                "proportion": {"verdict": "pass", "score": 0.85},
+            },
+        }]}), encoding="utf-8")
+        part_report = self.dir / "visible-part-report.json"
+        capture = run(
+            "stage4_review/check_visible_parts.py", "capture",
+            "--spec", self.spec, "--pass-id", "blockout",
+            "--reviews", part_observations, "--out", part_report,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
         r = run("stage4_review/append_review.py", self.spec, "--pass-id", "blockout",
                 "--fidelity", "0.8", "--action", "continue",
                 "--summary", "Blockout silhouette acceptable.",
                 "--render-screenshot", self.render, "--comparison-image", cmp,
                 "--ai-vision-score", "0.8", "--layer-scores-json", layers,
                 "--feature-reviews-json", freviews,
+                "--visible-part-report-json", part_report,
                 "--camera-view", "front", "--map-stripped-render", self.render, "--in-place")
         self.assertEqual(r.returncode, 0, r.stderr)
         spec = json.loads(self.spec.read_text())

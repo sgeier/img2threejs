@@ -12,6 +12,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_shared"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from feature_acceptance_policy import feature_gate_failures
+from visible_part_contracts import (
+    evaluate_visible_part_report,
+    required_visible_part_contracts,
+    visible_part_gate_failures,
+)
 from cs2_review import load_review_scene
 from status_banner import emit_status
 
@@ -140,7 +145,9 @@ def pass_specific_evidence(pass_id: str) -> list[str]:
     return []
 
 
-def review_completes_pass(spec: dict, entry: dict, pass_id: str) -> bool:
+def review_completes_pass(
+    spec: dict, entry: dict, pass_id: str, spec_dir: Path | None = None
+) -> bool:
     if entry.get("passId") != pass_id or entry.get("action") != "continue":
         return False
     visual = entry.get("visualEvidence")
@@ -163,17 +170,20 @@ def review_completes_pass(spec: dict, entry: dict, pass_id: str) -> bool:
             return False
         if feature_gate_failures(spec, entry, pass_id):
             return False
+        if visible_part_gate_failures(spec, entry, pass_id, spec_dir):
+            return False
     return True
 
 
-def sync_pipeline(spec: dict) -> None:
+def sync_pipeline(spec: dict, spec_dir: Path | None = None) -> None:
     ids = pass_order(spec)
     history = spec.get("reviewHistory", [])
     completed: list[str] = []
     if isinstance(history, list):
         for pass_id in ids:
             if any(
-                isinstance(entry, dict) and review_completes_pass(spec, entry, pass_id)
+                isinstance(entry, dict)
+                and review_completes_pass(spec, entry, pass_id, spec_dir)
                 for entry in history
             ):
                 completed.append(pass_id)
@@ -188,6 +198,7 @@ def sync_pipeline(spec: dict) -> None:
                 "browser render screenshot from your agent's browser/screenshot tool",
                 "single side-by-side full reference/render comparison sheet",
                 "all critical semantic feature scores at or above their thresholds",
+                "passing visible-part contracts with local same-camera evidence and current source fingerprints",
                 "self-correction review appended with action=continue before the next pass",
             ]
         )
@@ -226,6 +237,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--ai-vision-score", type=float, help="AI vision visual match score from 0 to 1")
     parser.add_argument("--layer-scores-json", help="JSON object with AI vision layer scores, e.g. silhouette/material/lighting")
     parser.add_argument("--feature-reviews-json", help="JSON array or file path containing per-feature scores from the same full image pair")
+    parser.add_argument(
+        "--visible-part-report-json",
+        help="Captured report from stage4_review/check_visible_parts.py",
+    )
     parser.add_argument("--ai-vision-notes", help="AI vision critique explaining the score and mismatch root causes")
     parser.add_argument("--visual-threshold", type=float, help="Override visual acceptance threshold for this review")
     parser.add_argument("--camera-view", help="Camera/viewpoint label, e.g. front, three-quarter, side, close-up")
@@ -269,7 +284,11 @@ def main(argv: list[str]) -> int:
     ids = pass_order(spec)
     completed: list[str] = []
     for pass_id in ids:
-        if any(isinstance(item, dict) and review_completes_pass(spec, item, pass_id) for item in history):
+        if any(
+            isinstance(item, dict)
+            and review_completes_pass(spec, item, pass_id, spec_path.parent)
+            for item in history
+        ):
             completed.append(pass_id)
         else:
             break
@@ -311,6 +330,31 @@ def main(argv: list[str]) -> int:
             not isinstance(score, (int, float)) or not 0 <= float(score) <= 1
         ):
             raise ValueError(f"feature review {index}.score must be from 0 to 1")
+    visible_part_report = load_json_argument(
+        args.visible_part_report_json, "--visible-part-report-json"
+    )
+    required_part_contracts = required_visible_part_contracts(spec, args.pass_id)
+    if (
+        args.pass_id in VISUAL_PASS_IDS
+        and args.action == "continue"
+        and required_part_contracts
+        and visible_part_report is None
+    ):
+        raise ValueError(
+            "visual pass cannot use action=continue without --visible-part-report-json; "
+            "capture it with stage4_review/check_visible_parts.py"
+        )
+    if visible_part_report is not None:
+        if not isinstance(visible_part_report, dict):
+            raise ValueError("--visible-part-report-json must be a JSON object")
+        part_result = evaluate_visible_part_report(
+            spec, visible_part_report, args.pass_id, spec_path.parent
+        )
+        if args.action == "continue" and not part_result["passed"]:
+            raise ValueError(
+                "visible-part contract gate is blocking continuation: "
+                + "; ".join(part_result["failedGates"])
+            )
     if args.pass_id in VISUAL_PASS_IDS and args.action == "continue":
         if not args.comparison_image:
             raise ValueError(
@@ -392,6 +436,8 @@ def main(argv: list[str]) -> int:
             raise ValueError("review evidence is missing axial viewpoints: " + ", ".join(missing))
     if cs2_review is not None:
         entry["cs2Review"] = cs2_review
+    if visible_part_report is not None:
+        entry["visiblePartReport"] = visible_part_report
     if args.pass_id in VISUAL_PASS_IDS and args.action == "continue":
         feature_failures = feature_gate_failures(spec, entry, args.pass_id)
         if feature_failures:
@@ -436,7 +482,7 @@ def main(argv: list[str]) -> int:
             }
         )
     history.append(entry)
-    sync_pipeline(spec)
+    sync_pipeline(spec, spec_path.parent)
 
     output = spec_path if args.in_place else (args.out.expanduser().resolve() if args.out else None)
     payload = json.dumps(spec, indent=2, ensure_ascii=False) + "\n"
